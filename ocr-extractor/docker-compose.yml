@@ -1,0 +1,28 @@
+# Three services, one command. This file IS the architecture diagram:
+#   api    -> FastAPI, the front door
+#   worker -> Celery, does the OCR + extraction off the request path
+#   redis  -> broker + result store connecting the two
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  worker:
+    build: .
+    command: celery -A app.celery_app.celery_app worker --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - C_FORCE_ROOT=1
+    depends_on:
+      - redis
