@@ -17,6 +17,9 @@ from .image_processing import load_image_from_bytes, preprocess_for_ocr
 
 def _run_tesseract(pil_image) -> str:
     import pytesseract
+    import os
+    if os.name == "nt":
+        pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     cleaned = preprocess_for_ocr(pil_image)
     return pytesseract.image_to_string(cleaned, config="--oem 3 --psm 6")
 
