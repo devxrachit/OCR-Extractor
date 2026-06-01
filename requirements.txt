@@ -9,3 +9,6 @@ python-multipart==0.0.9
 opencv-python-headless==4.9.0.80
 numpy==1.26.4
 slowapi==0.1.9
+aiofiles==23.2.1
+pytest==8.2.0
+httpx==0.27.0

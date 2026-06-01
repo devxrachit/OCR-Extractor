@@ -81,6 +81,7 @@ Example response:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `GET` | `/` | Web UI |
 | `GET` | `/health` | Health check |
 | `POST` | `/extract` | Upload a document — returns `job_id` immediately |
 | `GET` | `/result/{job_id}` | Poll for the extraction result |
@@ -113,6 +114,10 @@ docker compose up --build
 All three services (API, worker, Redis) start automatically.
 
 ### Usage
+
+Open **http://localhost:8000** in your browser to use the web UI — drag and drop a document, click **Extract Fields**, and results appear as fields with confidence bars and review flags.
+
+Or use the API directly:
 
 ```bash
 # Submit a document
@@ -158,7 +163,9 @@ pytest tests/ -v
 │   ├── worker.py          # Celery task: OCR + extraction
 │   ├── extraction.py      # Field extractors with confidence scores
 │   ├── image_processing.py# 5-step preprocessing pipeline
-│   └── celery_app.py      # Celery + Redis configuration
+│   ├── celery_app.py      # Celery + Redis configuration
+│   └── static/
+│       └── index.html     # Single-page web UI (drag & drop, live polling)
 ├── tests/
 │   ├── test_extraction.py
 │   └── test_image_processing.py

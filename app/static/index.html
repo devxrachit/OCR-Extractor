@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document Field Extractor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3a;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --radius: 10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 80px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    header p {
+      color: var(--muted);
+      margin-top: 6px;
+      font-size: 0.93rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      width: 100%;
+      max-width: 640px;
+      margin-bottom: 20px;
+    }
+
+    /* --- Upload zone --- */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    #drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.06);
+    }
+
+    #drop-zone svg {
+      width: 44px;
+      height: 44px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    #drop-zone p {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    #drop-zone strong {
+      color: var(--accent);
+      cursor: pointer;
+    }
+
+    #drop-zone .accepted-types {
+      font-size: 0.78rem;
+      margin-top: 6px;
+      color: #475569;
+    }
+
+    #file-input { display: none; }
+
+    /* --- Selected file pill --- */
+    #file-pill {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin-top: 16px;
+      padding: 10px 14px;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 8px;
+      font-size: 0.88rem;
+    }
+
+    #file-pill .pill-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #file-pill .pill-clear {
+      cursor: pointer;
+      color: var(--muted);
+      flex-shrink: 0;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+
+    #file-pill .pill-clear:hover { color: var(--red); }
+
+    /* --- Buttons --- */
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    #submit-btn {
+      background: var(--accent);
+      color: #fff;
+      flex: 1;
+    }
+
+    #submit-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    #submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    #preview-btn {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    #preview-btn:hover:not(:disabled) { background: #363a52; }
+    #preview-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* --- Status bar --- */
+    #status-card { display: none; }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status-text { font-size: 0.9rem; }
+    .status-sub  { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+    /* --- Results card --- */
+    #results-card { display: none; }
+
+    #results-card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .summary-badge {
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--accent-hover);
+    }
+
+    /* --- Field rows --- */
+    .field-list { display: flex; flex-direction: column; gap: 14px; }
+
+    .field-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .field-name {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+
+    .field-badges {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    .badge-review {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--red);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-conf {
+      font-weight: 500;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .field-value {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--text);
+      word-break: break-all;
+    }
+
+    .field-value.empty {
+      color: var(--muted);
+      font-style: italic;
+      font-weight: 400;
+    }
+
+    .conf-bar-track {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .conf-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+
+    /* --- Raw text --- */
+    .raw-toggle {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+
+    .raw-toggle summary {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: var(--muted);
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .raw-toggle summary::-webkit-details-marker { display: none; }
+
+    .raw-toggle summary::before {
+      content: "▶";
+      font-size: 0.65rem;
+      transition: transform 0.2s;
+    }
+
+    .raw-toggle[open] summary::before { transform: rotate(90deg); }
+
+    .raw-text {
+      margin-top: 12px;
+      padding: 14px;
+      background: var(--bg);
+      border-radius: 8px;
+      font-family: "Menlo", "Consolas", monospace;
+      font-size: 0.78rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #94a3b8;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    /* --- Preview image --- */
+    #preview-card { display: none; }
+
+    #preview-card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+
+    #preview-img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    /* --- Error state --- */
+    .error-box {
+      padding: 14px 16px;
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      color: var(--red);
+      font-size: 0.88rem;
+    }
+
+    /* --- Reset link --- */
+    #reset-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.82rem;
+      padding: 6px 14px;
+    }
+
+    #reset-btn:hover { border-color: var(--muted); color: var(--text); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Document Field Extractor</h1>
+  <p>Upload an invoice or receipt &mdash; get structured fields in seconds.</p>
+</header>
+
+<!-- Upload card -->
+<div class="card" id="upload-card">
+  <div id="drop-zone">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    <p>Drag &amp; drop a file, or <strong id="browse-link">browse</strong></p>
+    <p class="accepted-types">PDF &middot; PNG &middot; JPEG &nbsp;&mdash;&nbsp; up to 10 MB</p>
+    <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg" />
+  </div>
+
+  <div id="file-pill">
+    <span class="pill-name" id="pill-name"></span>
+    <span class="pill-clear" id="pill-clear" title="Remove file">&times;</span>
+  </div>
+
+  <div class="btn-row">
+    <button id="submit-btn" disabled>Extract Fields</button>
+    <button id="preview-btn" disabled title="See the preprocessed image Tesseract receives">Preview</button>
+  </div>
+</div>
+
+<!-- Status card -->
+<div class="card" id="status-card">
+  <div class="status-row">
+    <div class="spinner" id="status-spinner"></div>
+    <div>
+      <div class="status-text" id="status-text">Queuing job&hellip;</div>
+      <div class="status-sub" id="status-sub"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Results card -->
+<div class="card" id="results-card">
+  <h2>
+    Extracted Fields
+    <span class="summary-badge" id="summary-badge"></span>
+  </h2>
+  <div class="field-list" id="field-list"></div>
+
+  <details class="raw-toggle" id="raw-toggle">
+    <summary>Raw OCR text</summary>
+    <pre class="raw-text" id="raw-text"></pre>
+  </details>
+
+  <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+    <button id="reset-btn">Extract another</button>
+  </div>
+</div>
+
+<!-- Preview card -->
+<div class="card" id="preview-card">
+  <h2>Preprocessed Image</h2>
+  <img id="preview-img" alt="Preprocessed document" />
+  <p style="margin-top: 10px; font-size: 0.78rem; color: var(--muted);">
+    This is what Tesseract sees after grayscale, deskew, denoise, and adaptive threshold.
+  </p>
+  <div style="margin-top: 14px; display: flex; justify-content: flex-end;">
+    <button id="preview-close-btn" style="background: var(--border); color: var(--text); font-size: 0.82rem; padding: 6px 14px;">Close</button>
+  </div>
+</div>
+
+<script>
+  const dropZone     = document.getElementById("drop-zone");
+  const fileInput    = document.getElementById("file-input");
+  const browseLink   = document.getElementById("browse-link");
+  const filePill     = document.getElementById("file-pill");
+  const pillName     = document.getElementById("pill-name");
+  const pillClear    = document.getElementById("pill-clear");
+  const submitBtn    = document.getElementById("submit-btn");
+  const previewBtn   = document.getElementById("preview-btn");
+  const statusCard   = document.getElementById("status-card");
+  const statusSpinner= document.getElementById("status-spinner");
+  const statusText   = document.getElementById("status-text");
+  const statusSub    = document.getElementById("status-sub");
+  const resultsCard  = document.getElementById("results-card");
+  const summaryBadge = document.getElementById("summary-badge");
+  const fieldList    = document.getElementById("field-list");
+  const rawText      = document.getElementById("raw-text");
+  const resetBtn     = document.getElementById("reset-btn");
+  const previewCard  = document.getElementById("preview-card");
+  const previewImg   = document.getElementById("preview-img");
+  const previewCloseBtn = document.getElementById("preview-close-btn");
+
+  let selectedFile = null;
+  let pollTimer    = null;
+
+  // --- File selection ---
+  browseLink.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => setFile(fileInput.files[0]));
+
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+  dropZone.addEventListener("dragleave", ()  => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drag-over");
+    setFile(e.dataTransfer.files[0]);
+  });
+
+  pillClear.addEventListener("click", clearFile);
+
+  function setFile(file) {
+    if (!file) return;
+    selectedFile = file;
+    pillName.textContent = `${file.name}  (${formatBytes(file.size)})`;
+    filePill.style.display = "flex";
+    submitBtn.disabled = false;
+    previewBtn.disabled = file.type === "application/pdf";
+  }
+
+  function clearFile() {
+    selectedFile = null;
+    fileInput.value = "";
+    filePill.style.display = "none";
+    submitBtn.disabled = true;
+    previewBtn.disabled = true;
+  }
+
+  // --- Extract ---
+  submitBtn.addEventListener("click", () => startExtraction());
+
+  async function startExtraction() {
+    if (!selectedFile) return;
+
+    showStatus("Uploading document…");
+    hideResults();
+    hidePreview();
+    submitBtn.disabled = true;
+    previewBtn.disabled = true;
+
+    try {
+      const form = new FormData();
+      form.append("file", selectedFile);
+
+      const res  = await fetch("/extract", { method: "POST", body: form });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+
+      showStatus("Processing…", `Job ID: ${data.job_id}`);
+      pollResult(data.job_id);
+    } catch (err) {
+      showError(err.message);
+    }
+  }
+
+  // --- Poll ---
+  function pollResult(jobId) {
+    let attempts = 0;
+    pollTimer = setInterval(async () => {
+      attempts++;
+      try {
+        const res  = await fetch(`/result/${jobId}`);
+        const data = await res.json();
+
+        if (data.status === "done") {
+          clearInterval(pollTimer);
+          hideStatus();
+          renderResults(data.result);
+        } else if (data.status === "failed") {
+          clearInterval(pollTimer);
+          showError(`Extraction failed: ${data.error}`);
+        } else {
+          statusSub.textContent = `Polling… (${attempts}s elapsed)`;
+        }
+      } catch {
+        statusSub.textContent = "Network error — retrying…";
+      }
+    }, 1000);
+  }
+
+  // --- Render results ---
+  function renderResults(result) {
+    const { fields, raw_text_preview } = result;
+    const { fields: fieldMap, needs_review, summary } = fields;
+
+    summaryBadge.textContent = summary;
+    rawText.textContent = raw_text_preview || "(no text)";
+
+    fieldList.innerHTML = "";
+    const order = ["vendor", "invoice_number", "date", "total", "email"];
+    for (const name of order) {
+      const f = fieldMap[name];
+      if (!f) continue;
+      fieldList.appendChild(buildFieldRow(name, f));
+    }
+
+    resultsCard.style.display = "block";
+    resultsCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function buildFieldRow(name, f) {
+    const conf = f.confidence;
+    const color = conf >= 0.8 ? "var(--green)" : conf >= 0.6 ? "var(--yellow)" : "var(--red)";
+
+    const row = document.createElement("div");
+    row.className = "field-row";
+    row.innerHTML = `
+      <div class="field-meta">
+        <span class="field-name">${formatFieldName(name)}</span>
+        <div class="field-badges">
+          ${f.needs_review ? '<span class="badge badge-review">Review</span>' : ""}
+          <span class="badge-conf">${Math.round(conf * 100)}%</span>
+        </div>
+      </div>
+      <div class="field-value ${f.value ? "" : "empty"}">${f.value || "not found"}</div>
+      <div class="conf-bar-track">
+        <div class="conf-bar-fill" style="width:${conf * 100}%; background:${color};"></div>
+      </div>
+    `;
+    return row;
+  }
+
+  function formatFieldName(name) {
+    return name.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  // --- Preview ---
+  previewBtn.addEventListener("click", () => showPreview());
+
+  async function showPreview() {
+    if (!selectedFile || selectedFile.type === "application/pdf") return;
+
+    previewImg.src = "";
+    previewCard.style.display = "block";
+    previewCard.scrollIntoView({ behavior: "smooth" });
+    previewImg.alt = "Loading…";
+
+    try {
+      const form = new FormData();
+      form.append("file", selectedFile);
+      const res  = await fetch("/preview", { method: "POST", body: form });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      previewImg.src = URL.createObjectURL(blob);
+      previewImg.alt = "Preprocessed document";
+    } catch (err) {
+      previewImg.alt = `Error: ${err.message}`;
+    }
+  }
+
+  previewCloseBtn.addEventListener("click", hidePreview);
+
+  // --- Reset ---
+  resetBtn.addEventListener("click", () => {
+    clearFile();
+    hideResults();
+    hidePreview();
+    hideStatus();
+    submitBtn.disabled = true;
+    previewBtn.disabled = true;
+  });
+
+  // --- Helpers ---
+  function showStatus(text, sub = "") {
+    statusText.textContent = text;
+    statusSub.textContent  = sub;
+    statusCard.style.display  = "block";
+    statusSpinner.style.display = "block";
+  }
+
+  function hideStatus() { statusCard.style.display = "none"; }
+  function hideResults() { resultsCard.style.display = "none"; }
+  function hidePreview() { previewCard.style.display = "none"; }
+
+  function showError(msg) {
+    statusCard.style.display = "block";
+    statusSpinner.style.display = "none";
+    statusText.innerHTML = `<div class="error-box">${msg}</div>`;
+    statusSub.textContent = "";
+    submitBtn.disabled  = false;
+    previewBtn.disabled = !selectedFile || (selectedFile && selectedFile.type === "application/pdf");
+  }
+
+  function formatBytes(b) {
+    if (b < 1024) return `${b} B`;
+    if (b < 1048576) return `${(b/1024).toFixed(1)} KB`;
+    return `${(b/1048576).toFixed(1)} MB`;
+  }
+</script>
+</body>
+</html>
