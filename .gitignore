@@ -25,3 +25,8 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Logs and test uploads
+*.log
+test_*.pdf
+test_*.png

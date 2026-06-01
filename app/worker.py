@@ -30,11 +30,18 @@ def _ocr_image(image_bytes: bytes) -> str:
 
 
 def _ocr_pdf(pdf_bytes: bytes) -> str:
-    """Render each PDF page to an image, preprocess, then OCR."""
-    from pdf2image import convert_from_bytes
+    """Render each PDF page to an image via PyMuPDF, preprocess, then OCR."""
+    import fitz
+    from PIL import Image
 
-    pages = convert_from_bytes(pdf_bytes)
-    return "\n".join(_run_tesseract(page) for page in pages)
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    texts = []
+    for page in doc:
+        mat = fitz.Matrix(200 / 72, 200 / 72)  # ~200 DPI
+        pix = page.get_pixmap(matrix=mat)
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        texts.append(_run_tesseract(img))
+    return "\n".join(texts)
 
 
 @celery_app.task(name="process_document", bind=True)
